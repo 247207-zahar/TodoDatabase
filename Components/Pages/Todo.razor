@@ -1,0 +1,172 @@
+﻿@* Components/Pages/Todo.razor *@
+@page "/todo"
+@rendermode InteractiveServer
+@inject TodoDatabase.Services.TodoService TodoService
+
+<h3>📝 My Todo List</h3>
+
+@* ── ADD NEW TASK FORM ── *@
+<div style="margin-bottom:20px;">
+    <input @bind="newTitle"
+           placeholder="Enter new task..."
+           style="padding:8px; width:300px; margin-right:8px;" />
+    <button @onclick="AddTask"
+            style="padding:8px 16px; background:#28a745; color:white; border:none; border-radius:4px; cursor:pointer;">
+        ➕ Add Task
+    </button>
+</div>
+
+@* ── TASK LIST ── *@
+@if (todos == null)
+{
+    <p>Loading...</p>
+}
+else if (!todos.Any())
+{
+    <p>No tasks yet. Add one above!</p>
+}
+else
+{
+    <table style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#007bff; color:white; text-align:left;">
+                <th style="padding:10px;">✅ Done</th>
+                <th style="padding:10px;">📌 Task</th>
+                <th style="padding:10px;">📅 Created</th>
+                <th style="padding:10px;">⚙️ Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var todo in todos)
+            {
+                <tr style="border-bottom:1px solid #ddd; background:@(todo.IsCompleted ? "#f0fff0" : "white")">
+
+                    @* COMPLETE TOGGLE *@
+                    <td style="padding:10px; text-align:center;">
+                        <input type="checkbox"
+                               checked="@todo.IsCompleted"
+                               @onchange="() => ToggleComplete(todo)" />
+                    </td>
+
+                    @* TITLE (editable inline) *@
+                    <td style="padding:10px;">
+                        @if (editingId == todo.Id)
+                        {
+                            <input @bind="editTitle"
+                                   style="padding:4px; width:200px;" />
+                        }
+                        else
+                        {
+                            <span style="text-decoration:@(todo.IsCompleted ? "line-through" : "none"); color:@(todo.IsCompleted ? "gray" : "black")">
+                                @todo.Title
+                            </span>
+                        }
+                    </td>
+
+                    @* CREATED DATE *@
+                    <td style="padding:10px; color:gray; font-size:0.85em;">
+                        @todo.CreatedAt.ToString("dd MMM yyyy, hh:mm tt")
+                    </td>
+
+                    @* ACTION BUTTONS *@
+                    <td style="padding:10px;">
+                        @if (editingId == todo.Id)
+                        {
+                            <button @onclick="() => SaveEdit(todo)"
+                                    style="padding:5px 10px; background:#007bff; color:white; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">
+                                💾 Save
+                            </button>
+                            <button @onclick="CancelEdit"
+                                    style="padding:5px 10px; background:#6c757d; color:white; border:none; border-radius:3px; cursor:pointer;">
+                                ❌ Cancel
+                            </button>
+                        }
+                        else
+                        {
+                            <button @onclick="() => StartEdit(todo)"
+                                    style="padding:5px 10px; background:#ffc107; color:black; border:none; border-radius:3px; cursor:pointer; margin-right:5px;">
+                                ✏️ Edit
+                            </button>
+                            <button @onclick="() => DeleteTask(todo.Id)"
+                                    style="padding:5px 10px; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer;">
+                                🗑️ Delete
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @* STATS *@
+    <p style="margin-top:15px; color:#555;">
+        Total: <strong>@todos.Count</strong> |
+        Completed: <strong>@todos.Count(t => t.IsCompleted)</strong> |
+        Pending: <strong>@todos.Count(t => !t.IsCompleted)</strong>
+    </p>
+}
+
+@code {
+    private List<TodoDatabase.Data.TodoItem>? todos;
+    private string newTitle = "";
+    private int editingId = -1;
+    private string editTitle = "";
+
+    // Load all tasks on page load
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTodos();
+    }
+
+    private async Task LoadTodos()
+    {
+        todos = await TodoService.GetAllAsync();
+    }
+
+    // ✅ CREATE
+    private async Task AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle)) return;
+
+        var item = new TodoDatabase.Data.TodoItem
+        {
+            Title = newTitle.Trim(),
+            IsCompleted = false,
+            CreatedAt = DateTime.Now
+        };
+
+        await TodoService.AddAsync(item);
+        newTitle = "";        
+        await LoadTodos();  
+    }
+    private async Task ToggleComplete(TodoDatabase.Data.TodoItem todo)
+    {
+        todo.IsCompleted = !todo.IsCompleted;
+        await TodoService.UpdateAsync(todo);
+        await LoadTodos();
+    }
+    private void StartEdit(TodoDatabase.Data.TodoItem todo)
+    {
+        editingId = todo.Id;
+        editTitle = todo.Title;
+    }
+    private async Task SaveEdit(TodoDatabase.Data.TodoItem todo)
+    {
+        if (string.IsNullOrWhiteSpace(editTitle)) return;
+
+        todo.Title = editTitle.Trim();
+        await TodoService.UpdateAsync(todo);
+        editingId = -1;
+        await LoadTodos();
+    }
+    private void CancelEdit()
+    {
+        editingId = -1;
+        editTitle = "";
+    }
+    private async Task DeleteTask(int id)
+    {
+        await TodoService.DeleteAsync(id);
+        await LoadTodos();
+    }
+}
