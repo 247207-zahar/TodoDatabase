@@ -136,8 +136,8 @@ else
         };
 
         await TodoService.AddAsync(item);
-        newTitle = "";        
-        await LoadTodos();  
+        newTitle = "";
+        await LoadTodos();
     }
     private async Task ToggleComplete(TodoDatabase.Data.TodoItem todo)
     {
